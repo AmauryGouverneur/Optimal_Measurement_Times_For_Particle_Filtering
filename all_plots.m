@@ -2,20 +2,20 @@
 close all;
 fontsize = 7*2.5;
 %Rectify the computations times to have something to compare
-n_draw_comp = 1000; %number of draws to build the histogram
+n_draw_comp = 100000; %number of draws to build the histogram
 n_part_fine = 1000;
 n_measurements =11; %number of observations 
 T = 30; %number of time steps 
 
-to_test = [1,1,1,1,1]; %GF,GB,SA,GA,RT
+to_test = [0,0,1,0,0]; %GF,GB,SA,GA,RT
 
-n_part = 20; %number of particles 250
-n_draw = 10; %number of draws for the MC MSE estimator 100
+n_part = 200; %number of particles 250
+n_draw = 1000; %number of draws for the MC MSE estimator 100
 pop_size = 100; %population size of the GA algorithm 
 pop_size_SA = round(pop_size/2);
 pop_size_GA = 2*round(pop_size/2);
 max_gen = 25;
-max_gen_SA = max_gen;
+max_gen_SA = 2*max_gen;
 
 n_eval = pop_size*max_gen;
 
@@ -93,31 +93,31 @@ measurements_reg = zeros(1,T+1);
 measurements_reg(meas_reg+1) = 1;
 mse_reg = zeros(n_draw_comp,1);
 
-if to_test(1)
-    measurements_GF = zeros(1,T+1); 
-    measurements_GF(meas_GF(end,:)+1) = 1;
-    mse_GF = zeros(n_draw_comp,1);
-end
-if to_test(2)
-    measurements_GB = zeros(1,T+1); 
-    measurements_GB(meas_GB(end,:)+1) = 1;
-    mse_GB = zeros(n_draw_comp,1); 
-end
+% if to_test(1)
+%     measurements_GF = zeros(1,T+1); 
+%     measurements_GF(meas_GF(end,:)+1) = 1;
+%     mse_GF = zeros(n_draw_comp,1);
+% end
+% if to_test(2)
+%     measurements_GB = zeros(1,T+1); 
+%     measurements_GB(meas_GB(end,:)+1) = 1;
+%     mse_GB = zeros(n_draw_comp,1); 
+% end
 if to_test(3)
     measurements_SA = zeros(1,T+1); 
     measurements_SA(meas_SA+1) = 1;
     mse_SA = zeros(n_draw_comp,1);
 end
-if to_test(4)
-    measurements_GA = zeros(1,T+1); 
-    measurements_GA(meas_GA+1) = 1;
-    mse_GA = zeros(n_draw_comp,1);
-end
-if to_test(5)
-    measurements_RT = zeros(1,T+1); 
-    measurements_RT(meas_RT+1) = 1;
-    mse_RT = zeros(n_draw_comp,1);
-end
+% if to_test(4)
+%     measurements_GA = zeros(1,T+1); 
+%     measurements_GA(meas_GA+1) = 1;
+%     mse_GA = zeros(n_draw_comp,1);
+% end
+% if to_test(5)
+%     measurements_RT = zeros(1,T+1); 
+%     measurements_RT(meas_RT+1) = 1;
+%     mse_RT = zeros(n_draw_comp,1);
+% end
 %0. Constants definition 
 
 x0 = initialization(n_draw_comp,0,0);
@@ -163,12 +163,21 @@ display(['Comparison computations completed, time elapsed = ',num2str(t_elapsed_
 
 
 %%
+if to_test(1)
 gains_GF = 1-mse_GF./mse_reg;
+end
+if to_test(2)
 gains_GB = 1-mse_GB./mse_reg;
+end
+if to_test(3)
 gains_SA = 1-mse_SA./mse_reg;
+end
+if to_test(4)
 gains_GA = 1-mse_GA./mse_reg;
+end
+if to_test(5)
 gains_RT = 1-mse_RT./mse_reg;
-
+end
 n_draw_comp = length(mse_reg);
 
 
@@ -324,7 +333,7 @@ set(0, 'DefaultLineLineWidth', 1);
 end
 
 %%
-if to_test(4)
+if 1
 disp('Comparison over a single draw : GA and ref ');
 meas_reg = round(linspace(0,T,n_measurements));
 measurements_reg = zeros(1,T+1); 
@@ -340,19 +349,33 @@ tau_reg_single = particle_filter(y_single,measurements_reg,T,part,0);
 tau_GA_single = particle_filter(y_single,measurements_GA,T,part,0);
 err_reg_single = mean((objective(x_single,0)-tau_reg_single).^2,2);
 err_GA_single = mean((objective(x_single,0)-tau_GA_single).^2,2);
- 
+%%
+disp('GA online (+GA) computations started');
+t_start_GA_online = tic;
+[meas_GA_online,meas_GA] = online_optimob(y_single,n_measurements,T,30,15,100,200,1);
+t_elapsed_GA_online = toc(t_start_GA_online);
+%%
+measurements_GA_online = zeros(1,T+1); 
+measurements_GA_online(meas_GA_online+1) = 1;
+tau_GA_online = particle_filter(y_single,measurements_GA_online,T,part,0);
+err_GA_online = mean((objective(x_single,0)-tau_GA_online).^2,2);
+gain_GA_online = (err_reg_single - err_GA_online)/err_reg_single;
+display(['GA : gain = ' num2str((gain_GA_online)*100,'%.1f %%')]);
+%%
 gain_GA_single = (err_reg_single - err_GA_single)/err_reg_single;
 display(['GA : gain = ' num2str((gain_GA_single)*100,'%.1f %%')]);
-
+%%
 plot(0:0.25:T*0.25,(objective(x_single,0)),'k')
 hold on
 plot(0:0.25:T*0.25,tau_reg_single,':b')
 plot(0:0.25:T*0.25,tau_GA_single,'-.r')
+plot(0:0.25:T*0.25,tau_GA_online,'-.g')
 ylim([5*floor(min([min(tau_GA_single),min(objective(x_single,0)),min(tau_reg_single)])/5),5*ceil(max([max(tau_GA_single),max(objective(x_single,0)),max(tau_reg_single)])/5)])
 y_limits_plot = ylim;
 plot(meas_reg*0.25,y_limits_plot(2)*ones(n_measurements,1),'+b')
 plot(meas_GA*0.25,y_limits_plot(1)*ones(n_measurements,1),'*r')
-legend({'z','$\hat{z}(M_{reg})$','$\hat{z}(M_{GA})$'},'interpreter','latex')
+plot(meas_GA_online*0.25,(y_limits_plot(1)+1)*ones(n_measurements,1),'*g')
+legend({'z','$\hat{z}(M_{reg})$','$\hat{z}(M_{GA})$','$\hat{z}(M_{GA}(y))$'},'interpreter','latex')
 ylabel('position [mm]','interpreter','latex')
 xlabel('time, s','interpreter','latex')
 xlim([0 T*0.25])

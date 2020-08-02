@@ -15,14 +15,14 @@ end
 len=n_measurements;        % The length of the genomes  
 popSize=pop_size;          % The size of the population (must be an even number)
 maxGens=max_gen;                % The maximum number of generations allowed in a run
-probMutation=ceil(0.25*n_measurements)/n_measurements;        % The mutation probability (per bit)
+probMutation=ceil(0.10*n_measurements)/n_measurements;        % The mutation probability (per bit)
 probChanges = 1;
 visualizationFlag=0;       % 0 => don't visualize bit frequencies
                            % 1 => visualize bit frequencies
 
-verboseFlag=0;             % 1 => display details of each generation
+verboseFlag=1;             % 1 => display details of each generation
                            % 0 => run quietly
-convergenceFlag=0;         % 1 => plot convergence curve
+convergenceFlag=1;         % 1 => plot convergence curve
                            % 0 => does not
 
 
@@ -68,47 +68,18 @@ end
 
 % To identify copies in population
 pop = sortrows(pop);
-gen = 0 ; 
+gen = 1 ; 
 
+fitnessVals=localFitnessFunction(pop);
+[maxFitnessHist(1,gen),maxIndex]=max(fitnessVals);
+meas_SA = sort(pop(maxIndex,:));
 while gen<maxGens  
     % evaluate the fitness of the population. The vector of fitness values 
     % returned  must be of dimensions 1 x popSize.
     counter = 0; 
     counter_Lowering =0;
-    fitnessVals=localFitnessFunction(pop);
     
-    if gen>0 && maxFitnessHist(1,gen) > max(fitnessVals)
-        maxFitnessHist(1,gen+1)= maxFitnessHist(1,gen);
-    else 
-        [maxFitnessHist(1,gen+1),maxIndex]=max(fitnessVals);
-        meas_SA = sort(pop(maxIndex,:));
-    end
-    avgFitnessHist(1,gen+1)=mean(fitnessVals,'omitnan');
-     
-    % display the generation number, the average Fitness of the population,
-    % and the maximum fitness of any individual in the population
-    % Conditionally perform bit-frequency visualization
-    
-    if visualizationFlag
-        figure(1)
-        set (gcf, 'color', 'w');
-        hold off
-        if online
-            histogram(pop,accessible_meas,'Normalization','countdensity'); hold on;
-            plot(pop(maxIndex,:)+0.5,0*pop(maxIndex,:)+popSize,'.','Markersize',25);
-            axis([measurements_spacing T 0 popSize]);
-        else 
-            histogram(pop,accessible_meas,'Normalization','countdensity'); hold on;
-            plot(pop(maxIndex,:)+0.5,0*pop(maxIndex,:)+popSize,'.','Markersize',25);
-            axis([0 T 0 popSize]);
-        end
-        title(['Generation = ' num2str(gen) ', Average Fitness = ' sprintf('%0.3f', avgFitnessHist(1,gen+1))]);
-        ylabel('Frequency of measure in t');
-        xlabel('time t');
-        drawnow;
-    end
-    
-    
+   
     masks=rand(popSize, len)< probMutation*ones(popSize,len);
     % masks(i,j)==1 iff pop(i,j) has to be mutated (0 elsewhere) 
     if n_measurements == 1
@@ -130,11 +101,13 @@ while gen<maxGens
     for i=1:popSize
         if fitnessVals_mutation(i)>fitnessVals(i)
             pop(i,:) = pop_mutation(i,:);
+            fitnessVals(i) = fitnessVals_mutation(i);
             counter = counter+1;
         else
             if rand < exp(-(fitnessVals(i)-fitnessVals_mutation(i))/temperature)
                 if (pop(i,:)~=pop_mutation(i,:))
                     pop(i,:) = pop_mutation(i,:);
+                    fitnessVals(i) = fitnessVals_mutation(i);
                 end
                 counter = counter+1;
                 counter_Lowering = counter_Lowering+1;
@@ -146,15 +119,49 @@ while gen<maxGens
     pop = sort(pop,2);
     pop = sortrows(pop); % to identify copies in population
     
-    temperature = temperature*0.8;
-    rateAcceptanceHist(gen+1)=counter/pop_size;
-    rateAcceptanceHist_Lowering(gen+1)=counter_Lowering/pop_size;
+    temperature = temperature*0.9;
+    rateAcceptanceHist(gen)=counter/pop_size;
+    rateAcceptanceHist_Lowering(gen)=counter_Lowering/pop_size;
+    
+    if maxFitnessHist(1,gen) > max(fitnessVals)
+        maxFitnessHist(1,gen+1)= maxFitnessHist(1,gen);
+    else 
+        [maxFitnessHist(1,gen+1),maxIndex]=max(fitnessVals);
+        meas_SA = sort(pop(maxIndex,:));
+    end
+    avgFitnessHist(1,gen)=mean(fitnessVals,'omitnan');
+     
     if verboseFlag
         display(['gen=' num2str(gen,'%.3d') '   avgFitness=' ...
-            num2str(avgFitnessHist(1,gen+1),'%3.3f') '   maxFitness=' ...
+            num2str(avgFitnessHist(1,gen),'%3.3f') '   maxFitness=' ...
             num2str(maxFitnessHist(1,gen+1),'%3.3f') '   rateAcc=' ...
-            num2str(rateAcceptanceHist(1,gen+1),'%3.3f') '   rateAcc=' num2str(rateAcceptanceHist_Lowering(1,gen+1),'%3.3f') '   temperature=' num2str(temperature,'%3.3f')]);
+            num2str(rateAcceptanceHist(1,gen),'%3.3f') '   rateAcc=' num2str(rateAcceptanceHist_Lowering(1,gen),'%3.3f') '   temperature=' num2str(temperature,'%3.3f')]);
     end
+    
+    
+    % display the generation number, the average Fitness of the population,
+    % and the maximum fitness of any individual in the population
+    % Conditionally perform bit-frequency visualization
+    
+    if visualizationFlag
+        figure(1)
+        set (gcf, 'color', 'w');
+        hold off
+        if online
+            histogram(pop,accessible_meas,'Normalization','countdensity'); hold on;
+            plot(pop(maxIndex,:)+0.5,0*pop(maxIndex,:)+popSize,'.','Markersize',25);
+            axis([measurements_spacing T 0 popSize]);
+        else 
+            histogram(pop,accessible_meas,'Normalization','countdensity'); hold on;
+            plot(pop(maxIndex,:)+0.5,0*pop(maxIndex,:)+popSize,'.','Markersize',25);
+            axis([0 T 0 popSize]);
+        end
+        title(['Generation = ' num2str(gen) ', Average Fitness = ' sprintf('%0.3f', avgFitnessHist(1,gen))]);
+        ylabel('Frequency of measure in t');
+        xlabel('time t');
+        drawnow;
+    end
+    
     gen = gen+1; 
 end
 
