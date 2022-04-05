@@ -16,6 +16,6 @@ function w = weighting(y_j,part,t,t_j)
 % Author : Amaury Gouverneur & Antoine Aspeel
 v = 1;
 index_t = t+1;
-w = normpdf(y_j(index_t),objective_part(part,t_j+t),v )';
-
+w_l = log_normpdf(y_j(index_t),objective_part(part,t_j+t),v )';
+w = exp(w_l - max(w_l)) ;
 end
